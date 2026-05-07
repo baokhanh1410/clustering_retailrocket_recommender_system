@@ -135,7 +135,7 @@ The project implements and compares multiple clustering algorithms:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/baokhanh1410/clustering_retailrocket_recommender_system-.git
+git clone https://github.com/baokhanh1410/clustering_retailrocket_recommender_system.git
 cd DA_Classification
 ```
 
