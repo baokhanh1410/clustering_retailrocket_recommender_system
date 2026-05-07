@@ -136,7 +136,7 @@ The project implements and compares multiple clustering algorithms:
 
 ```bash
 git clone https://github.com/baokhanh1410/clustering_retailrocket_recommender_system.git
-cd DA_Classification
+cd clustering_retailrocket_recommender_system
 ```
 
 ### 2. Create and Activate Virtual Environment
@@ -214,7 +214,7 @@ These insights can help businesses:
 ## 📂 Project Structure
 
 ```bash
-DA_Classification/
+clustering_retailrocket_recommender_system/
 │
 ├── dataset/                  # Dataset storage (ignored in Git)
 ├── src/
