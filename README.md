@@ -208,6 +208,7 @@ These insights can help businesses:
 - Matplotlib
 - Seaborn
 - Jupyter Notebook
+- Duckdb
 
 ---
 
@@ -222,8 +223,8 @@ clustering_retailrocket_recommender_system/
 │   ├── analysis.py
 │   └── cleaning_data.py
 │   └── data_integration.py
-│   └── cleaning_data.py
-│   └── cleaning_data.py
+│   └── features.py
+│   └── models.py
 ├── main.ipynb             # Main analysis notebook
 ├── requirements.txt       # Project dependencies
 ├── README.md              # Project documentation

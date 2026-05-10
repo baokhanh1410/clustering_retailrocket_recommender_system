@@ -1,4 +1,6 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def get_cluster_profiles(rfm_df, labels):
     """
@@ -53,3 +55,32 @@ def get_business_strategies(profiles):
         })
         
     return pd.DataFrame(strategies).set_index('Cluster')
+
+def plot_rfm_distributions(rfm_df, title="RFM Distributions"):
+    """
+    Plots histograms for Recency, Frequency, and Monetary.
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    
+    sns.histplot(rfm_df['Recency'], kde=True, ax=axes[0], color='skyblue')
+    axes[0].set_title('Recency Distribution')
+    
+    sns.histplot(rfm_df['Frequency'], kde=True, ax=axes[1], color='salmon')
+    axes[1].set_title('Frequency Distribution')
+    
+    sns.histplot(rfm_df['Monetary'], kde=True, ax=axes[2], color='lightgreen')
+    axes[2].set_title('Monetary Distribution')
+    
+    plt.suptitle(title, fontsize=16)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+def plot_rfm_correlation(rfm_df):
+    """
+    Plots a heatmap of the correlation matrix for RFM variables.
+    """
+    plt.figure(figsize=(8, 6))
+    corr = rfm_df.corr()
+    sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+    plt.title('RFM Correlation Heatmap', fontsize=14)
+    plt.show()

@@ -1,34 +1,39 @@
 import pandas as pd
+import duckdb
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 def calculate_rfm(df):
     """
-    Calculates Recency, Frequency, and Monetary (Engagement) scores.
-    Monetary is a proxy based on weighted events.
+    Calculates RFM.
     """
-    # 1. Define weights for engagement
-    weights = {'view': 1, 'addtocart': 3, 'transaction': 5}
-    df['score'] = df['event'].map(weights)
-    
-    # 2. Get current timestamp (max date in dataset)
-    current_date = df['timestamp'].max()
-    
-    # 3. Aggregate at visitorid level
-    rfm = df.groupby('visitorid').agg({
-        'timestamp': lambda x: (current_date - x.max()).days, # Recency
-        'event': 'count',                                   # Frequency
-        'score': 'sum'                                      # Monetary (Engagement)
-    })
-    
-    # 4. Rename columns
-    rfm.rename(columns={
-        'timestamp': 'Recency',
-        'event': 'Frequency',
-        'score': 'Monetary'
-    }, inplace=True)
-    
-    return rfm
+    query = """
+    WITH max_time AS (
+        SELECT MAX(timestamp) AS current_date FROM df
+    )
+    SELECT 
+        visitorid,
+        -- Recency: Diff days between latest interaction and current date
+        date_diff('day', MAX(timestamp), (SELECT current_date FROM max_time)) AS Recency,
+        
+        -- Frequency: Count total interactions
+        COUNT(event) AS Frequency,
+        
+        -- Monetary: Get sum of weights
+        SUM(
+            CASE event
+                WHEN 'view' THEN 1
+                WHEN 'addtocart' THEN 3
+                WHEN 'transaction' THEN 5
+                ELSE 0
+            END
+        ) AS Monetary
+    FROM df
+    GROUP BY visitorid
+    """
+
+    return duckdb.sql(query).df()
+
 
 def prepare_features(rfm_df):
     """
