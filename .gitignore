@@ -54,6 +54,7 @@ dmypy.json
 *~
 
 # Datafiles
+docs
 dataset/
 *.csv
 *.zip

@@ -2,16 +2,22 @@
 models.py — Clustering Algorithms & Evaluation Metrics Module
 
 This module provides functions for running clustering algorithms (K-Means,
-DBSCAN) on preprocessed RFM features and evaluating the quality of the
-resulting clusters.
+DBSCAN, Agglomerative Hierarchical) on preprocessed RFM features and
+evaluating the quality of the resulting clusters.
 
 Key Exports:
-    - plot_elbow(data, max_k):          Plots the Elbow curve (inertia vs. k)
-                                         to help determine optimal K for K-Means.
-    - run_kmeans(data, k):              Runs K-Means clustering and returns labels.
-    - run_dbscan(data, eps, min_samples): Runs DBSCAN clustering and returns labels.
-    - calculate_silhouette(data, labels): Computes the Silhouette Score for
-                                          cluster quality evaluation.
+    - plot_elbow(data, max_k):              Plots the Elbow curve (inertia vs. k)
+                                             to help determine optimal K for K-Means.
+    - run_kmeans(data, k):                  Runs K-Means clustering and returns labels.
+    - run_dbscan(data, eps, min_samples):   Runs DBSCAN clustering and returns labels.
+    - run_hierarchical(data, n_clusters, linkage_method):
+                                             Runs Agglomerative Hierarchical Clustering
+                                             and returns labels.
+    - plot_dendrogram(data, method, max_display):
+                                             Plots a dendrogram to visualize the
+                                             hierarchical cluster structure.
+    - calculate_silhouette(data, labels):   Computes the Silhouette Score for
+                                             cluster quality evaluation.
 """
 
 # =============================================================================
@@ -19,8 +25,11 @@ Key Exports:
 # =============================================================================
 
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans, DBSCAN
+import numpy as np
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import silhouette_score
+from scipy.cluster.hierarchy import dendrogram, linkage
 
 
 # =============================================================================
@@ -28,7 +37,7 @@ from sklearn.metrics import silhouette_score
 # =============================================================================
 
 
-def plot_elbow(data, max_k=10):
+def plot_elbow_kmeans(data, max_k=10):
     """
     Plot the Elbow curve to find the optimal number of clusters for K-Means.
 
@@ -64,7 +73,69 @@ def plot_elbow(data, max_k=10):
     plt.grid(True, alpha=0.3)
     plt.show()
 
+def plot_elbow_dbscan(data, min_pts):
+    """
+    Plot the k-distance graph (Elbow curve) to find the optimal epsilon for DBSCAN.
 
+    This method calculates the distance from each point to its k-th nearest
+    neighbor (where k = min_pts). The distances are sorted in ascending order 
+    and plotted. The "elbow" or "knee" of the curve (where the slope increases 
+    sharply) indicates the optimal epsilon value.
+
+    Args:
+        data (array-like): Preprocessed feature matrix.
+            Should be a 2D array or DataFrame with shape (n_samples, n_features).
+        min_pts (int): The chosen minPts value for DBSCAN. Defaults to 4.
+            Used as the 'k' for finding nearest neighbors.
+
+    Returns:
+        None: Displays the k-distance plot inline.
+    """
+    # Initialize NearestNeighbors model
+    neighbors = NearestNeighbors(n_neighbors=min_pts)
+    neighbors_fit = neighbors.fit(data)
+    
+    # Calculate distance from each point to its min_pts nearest neighbors
+    distances, indices = neighbors_fit.kneighbors(data)
+    
+    # Get the distance to the farthest point among the min_pts nearest neighbors (in the last column)
+    # Then sort this distance array in ascending order
+    k_distances = np.sort(distances[:, -1])
+    
+    # Plot the k-distance graph
+    plt.figure(figsize=(10, 6))
+    plt.plot(k_distances, color='#e74c3c', linewidth=2)
+    plt.title(f'K-Distance Graph (Elbow Method for DBSCAN) - k={min_pts}', fontsize=14)
+    plt.xlabel('Data Points sorted by distance', fontsize=12)
+    plt.ylabel(f'{min_pts}-th Nearest Neighbor Distance ($\epsilon$)', fontsize=12)
+    plt.grid(True, alpha=0.3)
+    
+    # Add padding to the Y-axis to better visualize the "elbow"
+    plt.ylim(0, 1.0)
+    
+    plt.show()
+
+def get_optimal_epsilon(data, min_pts):
+    """
+    Automatically calculate optimal epsilon based on elbow method (Kneedle algorithm).
+    """
+    # 1. Calculate distance
+    neighbors = NearestNeighbors(n_neighbors=min_pts)
+    neighbors_fit = neighbors.fit(data)
+    distances, indices = neighbors_fit.kneighbors(data)
+    k_distances = np.sort(distances[:, -1])
+    
+    # 2. Normalize X and Y to [0, 1]
+    x = np.arange(len(k_distances))
+    x_norm = (x - x.min()) / (x.max() - x.min())
+    y_norm = (k_distances - k_distances.min()) / (k_distances.max() - k_distances.min())
+    
+    # 3. Calculate distance from each point to the line connecting the first and last points (y = x in normalized space)
+    # The point with the largest distance is the elbow point
+    distances_to_line = np.abs(x_norm - y_norm)
+    elbow_index = np.argmax(distances_to_line)
+    
+    return k_distances[elbow_index]
 # =============================================================================
 # Clustering Functions
 # =============================================================================
@@ -90,7 +161,7 @@ def run_kmeans(data, k):
     return labels
 
 
-def run_dbscan(data, eps=0.5, min_samples=5):
+def run_dbscan(data, eps, min_samples):
     """
     Run DBSCAN clustering and return cluster labels.
 
@@ -114,6 +185,85 @@ def run_dbscan(data, eps=0.5, min_samples=5):
     dbscan = DBSCAN(eps=eps, min_samples=min_samples)
     labels = dbscan.fit_predict(data)
     return labels
+
+
+def run_hierarchical(data, n_clusters=4, linkage_method='ward'):
+    """
+    Run Agglomerative Hierarchical Clustering and return cluster labels.
+
+    Agglomerative Hierarchical Clustering is a bottom-up approach that starts
+    with each point as its own cluster and iteratively merges the closest pair
+    of clusters until the desired number of clusters is reached.
+
+    The linkage method determines how the distance between clusters is computed:
+      - 'ward': Minimizes within-cluster variance (similar to K-Means objective).
+      - 'complete': Uses the maximum distance between cluster members.
+      - 'average': Uses the average distance between cluster members.
+      - 'single': Uses the minimum distance between cluster members.
+
+    Args:
+        data (array-like): Preprocessed feature matrix (scaled RFM values).
+        n_clusters (int): Number of clusters to create. Defaults to 4.
+        linkage_method (str): Linkage criterion to use. Defaults to 'ward'.
+            Must be one of 'ward', 'complete', 'average', 'single'.
+
+    Returns:
+        np.ndarray: Array of cluster labels (0 to n_clusters-1) for each sample.
+    """
+    model = AgglomerativeClustering(
+        n_clusters=n_clusters,
+        linkage=linkage_method
+    )
+    labels = model.fit_predict(data)
+    return labels
+
+
+# =============================================================================
+# Dendrogram Visualization
+# =============================================================================
+
+
+def plot_dendrogram(data, method='ward', max_display=30):
+    """
+    Plot a dendrogram to visualize the hierarchical cluster structure.
+
+    Computes a linkage matrix using scipy's linkage function and renders a
+    truncated dendrogram.  This is useful for determining the natural number
+    of clusters by inspecting where large jumps in merge distance occur.
+
+    The dendrogram is truncated to show only the last `max_display` merges,
+    making it readable even for large datasets.
+
+    Args:
+        data (array-like): Preprocessed feature matrix (scaled RFM values).
+            Should be a 2D array or DataFrame with shape (n_samples, n_features).
+        method (str): Linkage method for computing cluster distances.
+            Defaults to 'ward'. Options: 'ward', 'complete', 'average', 'single'.
+        max_display (int): Number of leaf nodes to display in the truncated
+            dendrogram. Defaults to 30.
+
+    Returns:
+        None: Displays the dendrogram plot inline.
+    """
+    # Compute the full linkage matrix
+    linked = linkage(data, method=method)
+
+    # Plot the dendrogram (truncated for readability)
+    plt.figure(figsize=(14, 7))
+    dendrogram(
+        linked,
+        truncate_mode='lastp',
+        p=max_display,
+        leaf_rotation=90,
+        leaf_font_size=10,
+        show_contracted=True
+    )
+    plt.title(f'Hierarchical Clustering Dendrogram ({method} linkage)', fontsize=14)
+    plt.xlabel('Cluster Size (or Sample Index)', fontsize=12)
+    plt.ylabel('Distance', fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 
 # =============================================================================

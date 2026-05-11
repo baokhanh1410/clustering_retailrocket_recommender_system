@@ -19,7 +19,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
 # =============================================================================
 # Cluster Profiling Functions
 # =============================================================================
@@ -45,17 +44,17 @@ def get_cluster_profiles(rfm_df, labels):
             rounded to 2 decimal places.
     """
     df_copy = rfm_df.copy()
-    df_copy['Cluster'] = labels
+    df_copy["Cluster"] = labels
 
     # Calculate the mean of each RFM metric per cluster
-    profiles = df_copy.groupby('Cluster').agg({
-        'Recency': 'mean',
-        'Frequency': 'mean',
-        'Monetary': 'mean'
-    }).round(2)
+    profiles = (
+        df_copy.groupby("Cluster")
+        .agg({"Recency": "mean", "Frequency": "mean", "Monetary": "mean"})
+        .round(2)
+    )
 
     # Add the number of customers in each cluster
-    profiles['Count'] = df_copy.groupby('Cluster')['Recency'].count()
+    profiles["Count"] = df_copy.groupby("Cluster")["Recency"].count()
 
     return profiles
 
@@ -75,25 +74,22 @@ def get_business_strategies(profiles):
 
       - HIGH Recency  = visitor has been INACTIVE for a long time (bad).
       - LOW  Recency  = visitor was recently active (good).
-      - HIGH Frequency = visitor interacts often (good).
-      - LOW  Frequency = visitor rarely interacts (bad).
-      - HIGH Monetary  = visitor has high engagement score (good).
-      - LOW  Monetary  = visitor has low engagement (bad).
+    """
 
-    Persona assignment rules:
-      1. Cluster -1 (DBSCAN noise) → "Outliers/Noise" — ignore or investigate.
-      2. High Frequency AND Low Recency → "Loyal Customers" — recently active
-         and frequently engaged.  Strategy: reward with exclusive offers.
-      3. High Recency AND High Frequency → "At Risk / Churning" — used to be
-         active but haven't visited recently.  Strategy: re-engagement campaigns.
-      4. Low Frequency AND Low Monetary → "Window Shoppers" — infrequent,
-         low-value interactions.  Strategy: retarget with popular items.
-      5. Everything else → "Potential Loyalists" — moderate engagement that
-         could be nurtured.  Strategy: upsell and loyalty programs.
+
+def get_business_strategies(profiles, baseline_stats):
+    """
+    Map cluster profiles to business personas and actionable strategies.
+
+    This function implements a refined heuristic to assign names and marketing
+    strategies to segments. It differentiates between various types of low
+    engagement (e.g., new vs. dormant) to provide more actionable insights.
 
     Args:
         profiles (pd.DataFrame): Output of get_cluster_profiles(), indexed
             by 'Cluster' with columns ['Recency', 'Frequency', 'Monetary', 'Count'].
+        baseline_stats (dict, optional): Dictionary with global RFM means/medians
+            to use as thresholds. If None, uses the mean of the cluster profiles.
 
     Returns:
         pd.DataFrame: A DataFrame indexed by 'Cluster' with columns
@@ -101,12 +97,19 @@ def get_business_strategies(profiles):
     """
     strategies = []
 
-    for cluster_id, row in profiles.iterrows():
+    # Calculate thresholds based on baseline or cluster averages
+    if baseline_stats:
+        avg_r = baseline_stats.get("Recency", profiles["Recency"].mean())
+        avg_f = baseline_stats.get("Frequency", profiles["Frequency"].mean())
+        avg_m = baseline_stats.get("Monetary", profiles["Monetary"].mean())
+    else:
+        avg_r = profiles["Recency"].mean()
+        avg_f = profiles["Frequency"].mean()
+        avg_m = profiles["Monetary"].mean()
 
+    for cluster_id, row in profiles.iterrows():
         # ------------------------------------------------------------------
         # Rule 0: Noise cluster from DBSCAN (label = -1).
-        # These points didn't fit into any cluster and may represent
-        # bots, crawlers, or genuinely unusual behavior.
         # ------------------------------------------------------------------
         if cluster_id == -1:
             persona = "Outliers/Noise"
@@ -114,51 +117,48 @@ def get_business_strategies(profiles):
 
         else:
             # ------------------------------------------------------------------
-            # Rule 1: Loyal Customers
-            #   - Frequency ABOVE average → actively engaged
-            #   - Recency BELOW average  → recently visited (still active)
-            # These are the most valuable customers.
+            # Tier 1: High Engagement
             # ------------------------------------------------------------------
-            if row['Frequency'] > profiles['Frequency'].mean() and row['Recency'] < profiles['Recency'].mean():
-                persona = "Loyal Customers"
-                strategy = "Reward with exclusive offers; Early access to new items."
+            if row["Frequency"] > avg_f:
+                if row["Recency"] <= avg_r:
+                    persona = "Loyal Customers"
+                    strategy = (
+                        "Reward with exclusive offers; Early access to new items."
+                    )
+                else:
+                    persona = "At Risk / Churning"
+                    strategy = "Send re-engagement emails; Discount codes for return."
 
             # ------------------------------------------------------------------
-            # Rule 2: At Risk / Churning
-            #   - Recency ABOVE average  → haven't visited in a while
-            #   - Frequency ABOVE average → USED TO be active
-            # These customers were once loyal but are drifting away.
+            # Tier 2: Low Engagement - Differentiated by Recency
             # ------------------------------------------------------------------
-            elif row['Recency'] > profiles['Recency'].mean() and row['Frequency'] > profiles['Frequency'].mean():
-                persona = "At Risk / Churning"
-                strategy = "Send re-engagement emails; Discount codes for return."
+            elif row["Frequency"] <= avg_f and row["Monetary"] <= avg_m:
+                if row["Recency"] <= avg_r:
+                    persona = "New / Recent Browsers"
+                    strategy = "Awareness campaigns; Retarget with trending items."
+                else:
+                    persona = "Dormant Leads"
+                    strategy = "Win-back discounts; Newsletter reminders."
 
             # ------------------------------------------------------------------
-            # Rule 3: Window Shoppers
-            #   - Frequency BELOW average → rarely interact
-            #   - Monetary BELOW average  → low engagement value
-            # These customers browse but don't convert.
+            # Tier 3: Selective Engagement
             # ------------------------------------------------------------------
-            elif row['Frequency'] < profiles['Frequency'].mean() and row['Monetary'] < profiles['Monetary'].mean():
-                persona = "Window Shoppers"
-                strategy = "Retarget with popular items; Awareness campaigns."
+            elif row["Monetary"] > avg_m:
+                persona = "Occasional High-Value"
+                strategy = "Upsell related categories; Incentive for higher frequency."
 
             # ------------------------------------------------------------------
-            # Rule 4: Potential Loyalists (default / catch-all)
-            #   - Don't fit the above patterns clearly.
-            #   - Show moderate engagement that could be improved.
+            # Tier 4: Default / Catch-all
             # ------------------------------------------------------------------
             else:
                 persona = "Potential Loyalists"
-                strategy = "Upsell related categories; Loyalty program invitations."
+                strategy = "Invite to loyalty program; Personalize recommendations."
 
-        strategies.append({
-            'Cluster': cluster_id,
-            'Persona': persona,
-            'Strategy': strategy
-        })
+        strategies.append(
+            {"Cluster": cluster_id, "Persona": persona, "Strategy": strategy}
+        )
 
-    return pd.DataFrame(strategies).set_index('Cluster')
+    return pd.DataFrame(strategies).set_index("Cluster")
 
 
 # =============================================================================
@@ -185,16 +185,16 @@ def plot_rfm_distributions(rfm_df, title="RFM Distributions"):
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     # Recency distribution (typically more uniform)
-    sns.histplot(rfm_df['Recency'], kde=True, ax=axes[0], color='skyblue')
-    axes[0].set_title('Recency Distribution')
+    sns.histplot(rfm_df["Recency"], kde=True, ax=axes[0], color="skyblue")
+    axes[0].set_title("Recency Distribution")
 
     # Frequency distribution (typically heavily right-skewed)
-    sns.histplot(rfm_df['Frequency'], kde=True, ax=axes[1], color='salmon')
-    axes[1].set_title('Frequency Distribution')
+    sns.histplot(rfm_df["Frequency"], kde=True, ax=axes[1], color="salmon")
+    axes[1].set_title("Frequency Distribution")
 
     # Monetary distribution (typically heavily right-skewed, correlated with Frequency)
-    sns.histplot(rfm_df['Monetary'], kde=True, ax=axes[2], color='lightgreen')
-    axes[2].set_title('Monetary Distribution')
+    sns.histplot(rfm_df["Monetary"], kde=True, ax=axes[2], color="lightgreen")
+    axes[2].set_title("Monetary Distribution")
 
     plt.suptitle(title, fontsize=16)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -221,6 +221,6 @@ def plot_rfm_correlation(rfm_df):
     # when the DataFrame may contain non-numeric columns.
     corr = rfm_df.corr(numeric_only=True)
 
-    sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
-    plt.title('RFM Correlation Heatmap', fontsize=14)
+    sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5)
+    plt.title("RFM Correlation Heatmap", fontsize=14)
     plt.show()

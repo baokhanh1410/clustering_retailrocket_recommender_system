@@ -61,7 +61,7 @@ This project utilizes the **Retailrocket eCommerce Dataset** from Kaggle, which 
 - Merging item properties and category structures into interaction logs using:
   - `visitorid`
   - `itemid`
-- Handling missing values and duplicates.
+- Handling missing values, duplicates and outliers.
 - Converting UNIX timestamps into human-readable datetime formats.
 
 ---
@@ -80,9 +80,9 @@ A customized **RFM (Recency, Frequency, Monetary)** framework is created for eac
 
 | Event Type | Score |
 |---|---|
-| View | 1 point |
-| Add-to-cart | 3 points |
-| Transaction | 5 points |
+| View | 0 point |
+| Add-to-cart | 30 points |
+| Transaction | 50 points |
 
 ### Feature Scaling
 
@@ -96,24 +96,29 @@ The project implements and compares multiple clustering algorithms:
 
 #### 🔹 K-Means
 - Primary baseline clustering model.
-- Centroid-based segmentation approach.
+- Centroid-based segmentation approach optimizing within-cluster variance.
+- Guided by the **Elbow Method** for optimal K selection.
 
 #### 🔹 DBSCAN
 - Density-based clustering algorithm.
-- Effective for discovering arbitrary-shaped clusters and handling noise.
+- Effective for discovering arbitrary-shaped clusters and automatically identifying **noise/outlier points** (labeled as -1).
+- Parameters `eps` and `min_samples` are tuned to find optimal data density.
 
 #### 🔹 Hierarchical Clustering
-- Builds nested cluster structures.
-- Visualized using Dendrograms for deeper structural understanding.
+- Agglomerative (bottom-up) approach using **Ward linkage**.
+- Provides a deterministic cluster structure visualized using **Dendrograms** to guide the selection of cluster counts.
+- Useful for understanding the taxonomic relationships between customer segments.
 
 ---
 
-### 4. Model Evaluation
+### 4. Model Comparison & Evaluation
 
-| Method | Purpose |
-|---|---|
-| **Elbow Method** | Determine the optimal number of clusters (`k`) |
-| **Silhouette Score** | Evaluate cluster separation quality and density |
+| Method | Metric | Purpose |
+|---|---|---|
+| **K-Means** | Inertia / Silhouette | Centroid cohesion and cluster separation |
+| **DBSCAN** | Silhouette Score | Identification of high-density regions vs. noise |
+| **Hierarchical** | Cophenetic / Silhouette | Visualizing merge distances via dendrogram |
+| **Cross-Model** | Silhouette Score | Side-by-side comparison of all three paradigms |
 
 ---
 
@@ -161,6 +166,23 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+### 4. Dataset Preparation
+#### Method 1: Use Kaggle API (Automatic)
+The project integrates the dataset.py module to automatically download data. To use:
+
+Login Kaggle, go to Settings -> Create New API Token to download the kaggle.json file.
+
+Move the kaggle.json file to the folder:
+
+- **Windows**: `C:\Users\<Username>\.kaggle\`
+- **Linux/macOS**: `~/.kaggle/`
+
+#### Method 2: Manual Download
+
+Access: [Retailrocket eCommerce Dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset).
+
+Download, unzip and copy all .csv files into the dataset/ folder in the project root directory.
+
 ---
 
 ## ▶️ Running the Project
@@ -185,10 +207,11 @@ The notebook is configured to:
 Each cluster is profiled using average **RFM** scores:
 
 | Customer Type | Characteristics |
-|---|---|
-| **Loyal Customers** | High frequency and recent activity |
-| **At-Risk Users** | Previously active users with long inactivity |
-| **Window Shoppers** | Frequent views but no transactions |
+| :--- | :--- |
+| **Loyal Customers** | High-value users with high **Cumulative Engagement Score**, driven by multiple cart additions or transactions. |
+| **New / Recent Browsers** | Users who interacted with the platform very recently and are currently in the discovery phase. |
+| **At-Risk Users** | Previously active users with moderate frequency |
+| **Dormant Leads** | The largest segment, characterized by high inactivity and zero engagement score beyond casual browsing. |
 
 These insights can help businesses:
 
@@ -204,6 +227,7 @@ These insights can help businesses:
 - Python
 - Pandas
 - NumPy
+- Scipy
 - Scikit-learn
 - Matplotlib
 - Seaborn
@@ -220,14 +244,15 @@ clustering_retailrocket_recommender_system/
 ├── dataset/                  # Dataset storage (ignored in Git)
 ├── src/
 │   ├── __init__.py
-│   ├── analysis.py
-│   └── cleaning_data.py
-│   └── data_integration.py
-│   └── features.py
-│   └── models.py
-├── main.ipynb             # Main analysis notebook
-├── requirements.txt       # Project dependencies
-├── README.md              # Project documentation
+│   ├── analysis.py            # Visualization & strategy mapping
+│   ├── cleaning_data.py      # Data cleaning logic
+│   ├── data_integration.py   # DuckDB merge logic
+│   ├── dataset.py            # Kaggle data setup
+│   ├── features.py           # RFM engineering & scaling
+│   └── models.py             # Clustering algorithms
+├── main.ipynb                 # Main analysis notebook
+├── requirements.txt           # Project dependencies
+├── README.md                  # Project documentation
 └── .gitignore
 ```
 
