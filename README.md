@@ -86,7 +86,7 @@ A customized **RFM (Recency, Frequency, Monetary)** framework is created for eac
 
 ### Feature Scaling
 
-Data normalization is performed using `StandardScaler` to ensure balanced feature importance before clustering.
+Data normalization is performed using `MinMaxScaler` to ensure balanced feature importance before clustering.
 
 ---
 
