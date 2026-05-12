@@ -7,7 +7,7 @@ those features to prepare them for clustering algorithms.
 
 Key Exports:
     - calculate_rfm(df): Computes RFM metrics per visitor using DuckDB SQL.
-    - prepare_features(rfm_df): Applies log1p transformation + StandardScaler.
+    - prepare_features(rfm_df): Applies log1p transformation + MinMaxScaler.
 """
 
 # =============================================================================
@@ -88,7 +88,7 @@ def prepare_features(rfm_df):
     # Apply log1p (log(1 + x)) transformation to handle zero values safely
     rfm_log = np.log1p(rfm_subset)
 
-    # Standardize with StandardScaler (mean=0, std=1)
+    # Standardize with MinMaxScaler (mean=0, std=1)
     scaler = MinMaxScaler()
     scaled_features = scaler.fit_transform(rfm_log)
 
